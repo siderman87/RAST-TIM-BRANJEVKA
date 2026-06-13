@@ -4,9 +4,18 @@ V DostavaPro se prijavite kot administrator in odprite:
 
 `Dostave > Uvozi iz TRIS`
 
-Podprte so datoteke CSV, TXT in XML. CSV lahko uporablja podpičje, vejico ali
-tabulator. Ena vrstica predstavlja eno postavko. Vrstice z isto številko
+Podprte so datoteke CSV, TXT, XML in PDF. CSV lahko uporablja podpičje, vejico
+ali tabulator. Ena vrstica predstavlja eno postavko. Vrstice z isto številko
 dobavnice se samodejno združijo.
+
+## PDF
+
+PDF se prebere neposredno v brskalniku in se ne pošilja na strežnik. Uvoz
+prepozna številko dobavnice, datum, prejemnika, naslov in postavke. Razpoznava
+je preverjena z dobavnico oblike `etra.pdf`.
+
+PDF mora vsebovati pravo besedilo. Če je dokument samo skenirana slika, ga
+trenutna različica ne more prebrati in je treba dodati OCR.
 
 ## Priporočeni stolpci
 

@@ -16,6 +16,9 @@ Začetna administrativna prijava je `admin` / `admin123`. Po prijavi lahko v
 meniju `Vozni park` dodate voznika, njegovo uporabniško ime in PIN. Voznik se
 na isti začetni strani prijavi s tema podatkoma in vidi samo svoje dostave.
 
+TRIS dobavnice uvozite v `Dostave > Uvozi iz TRIS`. PDF uvoz deluje za
+dokumente z vgrajenim besedilom; skenirani dokumenti potrebujejo OCR.
+
 ## 2. Produkcijska različica
 
 Za istočasno delo dispečerja in več voznikov bomo dodali:

@@ -197,6 +197,65 @@ function rowsToDeliveries(rows) {
     return delivery;
   });
 }
+function parsePdfDelivery(text) {
+  const lines = text.split(/\r?\n/).map(line => line.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const numberMatch = text.match(/Dobavnica[^\n]*?(\d{4}\/\d+|[A-Z0-9]+[-/][A-Z0-9/-]+)/i);
+  const dateMatch = text.match(/(?:Vodice,\s*dne|Datum odpreme:?)\s*(\d{1,2}[.]\d{1,2}[.]\d{4})/i);
+  const number = numberMatch?.[1] || "";
+  if (!number) throw new Error("V PDF-ju ni bilo mogoče prepoznati številke dobavnice.");
+
+  const supplierEnd = lines.findIndex(line => /TRR\s*:/i.test(line));
+  const documentStart = lines.findIndex(line => /Dobavnica/i.test(line));
+  const customerLines = supplierEnd >= 0 && documentStart > supplierEnd
+    ? lines.slice(supplierEnd + 1, documentStart)
+    : [];
+  const customer = customerLines[0] || "Neznani prejemnik";
+  const address = customerLines.slice(1).join(", ");
+
+  const itemPattern = /^(\d+)\s+(.+?\([^)]+\))\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)$/;
+  const items = lines.map(line => line.match(itemPattern)).filter(Boolean).map(match => ({
+    code: match[2],
+    name: match[3],
+    quantity: parseNumber(match[4]),
+    unit: "kg",
+    price: parseNumber(match[5]),
+    vat: parseNumber(match[6]),
+    value: parseNumber(match[7])
+  }));
+  if (!items.length) throw new Error("V PDF-ju ni bilo mogoče prepoznati postavk dobavnice.");
+
+  const eventLine = lines.find(line => /^DOGODEK\b/i.test(line));
+  const cratesLine = lines.find(line => /^Gajbice\s*:/i.test(line));
+  return [{
+    id: id("del"), number, date: parseTrisDate(dateMatch?.[1] || ""),
+    customer, email: "", address, from: "", to: "", driverId: "", vehicleId: "",
+    status: "planned", note: [eventLine, cratesLine].filter(Boolean).join(" · "),
+    recipient: "", signature: "", source: "TRIS PDF", items
+  }];
+}
+async function extractPdfText(file) {
+  const pdfjs = await import("./vendor/pdfjs/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.mjs";
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const pdf = await pdfjs.getDocument({ data: bytes }).promise;
+  const pages = [];
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const rows = new Map();
+    content.items.forEach(item => {
+      const y = Math.round(item.transform[5] * 2) / 2;
+      if (!rows.has(y)) rows.set(y, []);
+      rows.get(y).push({ x: item.transform[4], text: item.str });
+    });
+    const pageLines = [...rows.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([, items]) => items.sort((a, b) => a.x - b.x).map(item => item.text).join(" ").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+    pages.push(pageLines.join("\n"));
+  }
+  return pages.join("\n");
+}
 function openTrisImport() {
   pendingTrisDeliveries = [];
   $("#tris-file").value = "";
@@ -227,10 +286,15 @@ function renderTrisPreview() {
 async function readTrisFile(file) {
   if (!file) return;
   try {
-    const text = await file.text();
     const extension = file.name.split(".").pop().toLowerCase();
-    const rows = extension === "xml" || text.trim().startsWith("<") ? parseXml(text) : parseCsv(text);
-    pendingTrisDeliveries = rowsToDeliveries(rows);
+    if (extension === "pdf" || file.type === "application/pdf") {
+      const text = await extractPdfText(file);
+      pendingTrisDeliveries = parsePdfDelivery(text);
+    } else {
+      const text = await file.text();
+      const rows = extension === "xml" || text.trim().startsWith("<") ? parseXml(text) : parseCsv(text);
+      pendingTrisDeliveries = rowsToDeliveries(rows);
+    }
     if (!pendingTrisDeliveries.length) throw new Error("V datoteki ni bilo mogoče najti dobavnic.");
     renderTrisPreview();
   } catch (error) {
@@ -577,7 +641,8 @@ setupSignature();
 window.DostavaProImport = Object.freeze({
   parseCsv,
   parseXml,
-  rowsToDeliveries
+  rowsToDeliveries,
+  parsePdfDelivery
 });
 render();
 if (currentUser()) showView(session.role === "driver" ? "driver" : "dashboard");

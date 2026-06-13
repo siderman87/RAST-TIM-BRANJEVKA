@@ -17,7 +17,7 @@ elektronskih dobavnic.
 - ločeno prijavo za administratorja in voznike;
 - voznik vidi samo svoje dodeljene dostave;
 - administrator lahko dodaja vozniške račune.
-- uvoz dobavnic iz TRIS v obliki CSV, TXT ali XML;
+- uvoz dobavnic iz TRIS v obliki CSV, TXT, XML ali tekstovni PDF;
 - predogled uvoza in samodejno preprečevanje dvojnikov.
 
 Navodila in vzorčna datoteka so v [TRIS-UVOZ.md](TRIS-UVOZ.md) ter
