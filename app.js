@@ -29,6 +29,7 @@ let state = loadState();
 let session = loadSession();
 let activeProofId = null;
 let signatureDirty = false;
+let pendingTrisDeliveries = [];
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -78,6 +79,172 @@ function formatDate(value) {
 }
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
+}
+function normalizeKey(value = "") {
+  return String(value).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+}
+function firstValue(row, aliases) {
+  const normalized = Object.fromEntries(Object.entries(row).map(([key, value]) => [normalizeKey(key), value]));
+  for (const alias of aliases) {
+    const value = normalized[normalizeKey(alias)];
+    if (value !== undefined && String(value).trim() !== "") return String(value).trim();
+  }
+  return "";
+}
+function parseNumber(value) {
+  const normalized = String(value || "0").trim().replace(/\s/g, "").replace(",", ".");
+  return Number(normalized) || 0;
+}
+function parseTrisDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return todayISO;
+  const isoMatch = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
+  const localMatch = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+  if (localMatch) return `${localMatch[3]}-${localMatch[2].padStart(2, "0")}-${localMatch[1].padStart(2, "0")}`;
+  return todayISO;
+}
+function detectDelimiter(line) {
+  const candidates = [";", "\t", ","];
+  return candidates.sort((a, b) => line.split(b).length - line.split(a).length)[0];
+}
+function parseDelimitedLine(line, delimiter) {
+  const cells = [];
+  let value = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"') {
+      if (quoted && line[index + 1] === '"') { value += '"'; index += 1; }
+      else quoted = !quoted;
+    } else if (char === delimiter && !quoted) {
+      cells.push(value.trim());
+      value = "";
+    } else value += char;
+  }
+  cells.push(value.trim());
+  return cells;
+}
+function parseCsv(text) {
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter(line => line.trim());
+  if (lines.length < 2) throw new Error("CSV datoteka nima podatkovnih vrstic.");
+  const delimiter = detectDelimiter(lines[0]);
+  const headers = parseDelimitedLine(lines[0], delimiter);
+  return lines.slice(1).map(line => {
+    const cells = parseDelimitedLine(line, delimiter);
+    return Object.fromEntries(headers.map((header, index) => [header, cells[index] || ""]));
+  });
+}
+function elementToRow(element) {
+  const row = {};
+  [...element.children].forEach(child => {
+    if (child.children.length === 0) row[child.tagName] = child.textContent.trim();
+    else [...child.children].forEach(grandchild => {
+      if (grandchild.children.length === 0) row[`${child.tagName}_${grandchild.tagName}`] = grandchild.textContent.trim();
+    });
+  });
+  [...element.attributes].forEach(attribute => { row[attribute.name] = attribute.value; });
+  return row;
+}
+function parseXml(text) {
+  const documentXml = new DOMParser().parseFromString(text, "application/xml");
+  if (documentXml.querySelector("parsererror")) throw new Error("XML datoteka ni veljavna.");
+  const preferred = ["dobavnica", "deliverynote", "dokument", "document", "row", "vrstica", "record"];
+  const allElements = [...documentXml.getElementsByTagName("*")];
+  for (const name of preferred) {
+    const nodes = allElements.filter(element => normalizeKey(element.localName) === normalizeKey(name));
+    if (nodes.length) return nodes.map(elementToRow);
+  }
+  const rootChildren = [...documentXml.documentElement.children];
+  if (!rootChildren.length) throw new Error("XML ne vsebuje dobavnic.");
+  return rootChildren.map(elementToRow);
+}
+function rowsToDeliveries(rows) {
+  const aliases = {
+    number: ["stevilkadobavnice", "st_dobavnice", "st dokumenta", "dokument", "documentnumber", "deliverynumber", "stevilka"],
+    date: ["datumdobavnice", "datum", "documentdate", "deliverydate", "datumprometa"],
+    customer: ["nazivkupca", "kupec", "partner", "nazivpartnerja", "prejemnik", "customer", "customername"],
+    email: ["email", "eposta", "emailkupca", "partneremail"],
+    address: ["naslovdostave", "naslov", "ulica", "deliveryaddress", "address"],
+    post: ["posta", "postnastevilka", "kraj", "postalcode", "city"],
+    item: ["nazivartikla", "artikel", "nazivblaga", "opis", "item", "itemname"],
+    quantity: ["kolicina", "kol", "quantity", "qty"],
+    unit: ["enota", "em", "unit"],
+    note: ["opomba", "napomena", "note", "remarks"],
+    from: ["casod", "uraod", "timefrom"],
+    to: ["casdo", "urado", "timeto"]
+  };
+  const grouped = new Map();
+  rows.forEach((row, rowIndex) => {
+    const number = firstValue(row, aliases.number) || `TRIS-${Date.now()}-${rowIndex + 1}`;
+    if (!grouped.has(number)) {
+      const address = firstValue(row, aliases.address);
+      const post = firstValue(row, aliases.post);
+      grouped.set(number, {
+        id: id("del"), number, date: parseTrisDate(firstValue(row, aliases.date)),
+        customer: firstValue(row, aliases.customer) || "Neznani prejemnik",
+        email: firstValue(row, aliases.email), address: [address, post].filter(Boolean).join(", "),
+        from: firstValue(row, aliases.from), to: firstValue(row, aliases.to), driverId: "", vehicleId: "",
+        status: "planned", note: firstValue(row, aliases.note), recipient: "", signature: "", source: "TRIS", items: []
+      });
+    }
+    const delivery = grouped.get(number);
+    const itemName = firstValue(row, aliases.item);
+    if (itemName) delivery.items.push({ name: itemName, quantity: parseNumber(firstValue(row, aliases.quantity)) || 1, unit: firstValue(row, aliases.unit) || "kos" });
+  });
+  return [...grouped.values()].map(delivery => {
+    if (!delivery.items.length) delivery.items.push({ name: "Blago po dobavnici TRIS", quantity: 1, unit: "dobavnica" });
+    return delivery;
+  });
+}
+function openTrisImport() {
+  pendingTrisDeliveries = [];
+  $("#tris-file").value = "";
+  $("#tris-status").classList.add("hidden");
+  $("#tris-preview").classList.add("hidden");
+  $("#confirm-tris-import").disabled = true;
+  $("#tris-dialog").showModal();
+}
+function showTrisError(message) {
+  $("#tris-status").textContent = message;
+  $("#tris-status").classList.remove("hidden");
+  $("#tris-preview").classList.add("hidden");
+  $("#confirm-tris-import").disabled = true;
+}
+function renderTrisPreview() {
+  const existingNumbers = new Set(state.deliveries.map(item => item.number.trim().toLowerCase()));
+  const newCount = pendingTrisDeliveries.filter(item => !existingNumbers.has(item.number.trim().toLowerCase())).length;
+  const duplicateCount = pendingTrisDeliveries.length - newCount;
+  $("#tris-summary").innerHTML = `<strong>${pendingTrisDeliveries.length} zaznanih dobavnic</strong><span>${newCount} novih</span><span>${duplicateCount} že obstaja</span>`;
+  $("#tris-preview-body").innerHTML = pendingTrisDeliveries.map(item => {
+    const duplicate = existingNumbers.has(item.number.trim().toLowerCase());
+    return `<tr><td><strong>${escapeHtml(item.number)}</strong></td><td>${escapeHtml(item.customer)}</td><td>${formatDate(item.date)}</td><td>${escapeHtml(item.address || "-")}</td><td>${item.items.length}</td><td><span class="import-result ${duplicate ? "duplicate" : "new"}">${duplicate ? "Preskočeno" : "Novo"}</span></td></tr>`;
+  }).join("");
+  $("#tris-status").classList.add("hidden");
+  $("#tris-preview").classList.remove("hidden");
+  $("#confirm-tris-import").disabled = newCount === 0;
+}
+async function readTrisFile(file) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const extension = file.name.split(".").pop().toLowerCase();
+    const rows = extension === "xml" || text.trim().startsWith("<") ? parseXml(text) : parseCsv(text);
+    pendingTrisDeliveries = rowsToDeliveries(rows);
+    if (!pendingTrisDeliveries.length) throw new Error("V datoteki ni bilo mogoče najti dobavnic.");
+    renderTrisPreview();
+  } catch (error) {
+    pendingTrisDeliveries = [];
+    showTrisError(error instanceof Error ? error.message : "Uvoz datoteke ni uspel.");
+  }
+}
+function confirmTrisImport() {
+  const existingNumbers = new Set(state.deliveries.map(item => item.number.trim().toLowerCase()));
+  const imported = pendingTrisDeliveries.filter(item => !existingNumbers.has(item.number.trim().toLowerCase()));
+  state.deliveries.push(...imported);
+  render();
+  $("#tris-dialog").close();
+  toast(`Uvoženih dobavnic: ${imported.length}.`);
 }
 let toastTimer;
 function toast(message) {
@@ -365,6 +532,19 @@ $("#login-form").addEventListener("submit", event => {
 });
 $("#logout-button").addEventListener("click", logout);
 $("#new-delivery-button").addEventListener("click", () => openDelivery());
+$("#import-tris-button").addEventListener("click", openTrisImport);
+$("#tris-file").addEventListener("change", event => readTrisFile(event.target.files[0]));
+$("#confirm-tris-import").addEventListener("click", confirmTrisImport);
+const trisDropZone = $("#tris-drop-zone");
+["dragenter", "dragover"].forEach(type => trisDropZone.addEventListener(type, event => {
+  event.preventDefault();
+  trisDropZone.classList.add("dragging");
+}));
+["dragleave", "drop"].forEach(type => trisDropZone.addEventListener(type, event => {
+  event.preventDefault();
+  trisDropZone.classList.remove("dragging");
+}));
+trisDropZone.addEventListener("drop", event => readTrisFile(event.dataTransfer.files[0]));
 $("#new-vehicle-button").addEventListener("click", () => openResource("vehicle"));
 $("#new-driver-button").addEventListener("click", () => openResource("driver"));
 $("#add-delivery-item").addEventListener("click", () => addItemRow());
@@ -394,5 +574,10 @@ $("#export-data").addEventListener("click", () => {
 });
 
 setupSignature();
+window.DostavaProImport = Object.freeze({
+  parseCsv,
+  parseXml,
+  rowsToDeliveries
+});
 render();
 if (currentUser()) showView(session.role === "driver" ? "driver" : "dashboard");

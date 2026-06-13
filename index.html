@@ -6,7 +6,7 @@
   <meta name="description" content="Upravljanje vozil, voznikov, dostav in elektronskih dobavnic.">
   <title>DostavaPro</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="app.js" defer></script>
+  <script src="app.js?v=20260613-tris2" defer></script>
 </head>
 <body>
   <section class="login-screen" id="login-screen">
@@ -85,6 +85,7 @@
             <option value="delivered">Dostavljeno</option>
             <option value="failed">Neuspešno</option>
           </select>
+          <button class="button primary" id="import-tris-button">Uvozi iz TRIS</button>
           <button class="button secondary" id="export-data">Izvozi podatke</button>
         </div>
         <section class="panel table-panel">
@@ -149,6 +150,35 @@
       <input type="hidden" id="resource-type">
       <div id="resource-fields"></div>
       <div class="modal-actions"><button class="button ghost" value="cancel" formnovalidate>Prekliči</button><button class="button primary" id="save-resource" value="default">Shrani</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="tris-dialog" class="tris-dialog">
+    <form method="dialog" id="tris-form">
+      <div class="modal-heading">
+        <div><p class="eyebrow">UVOZ PODATKOV</p><h2>Dobavnice iz programa TRIS</h2></div>
+        <button class="close-button" value="cancel" formnovalidate aria-label="Zapri">×</button>
+      </div>
+      <p class="import-help">Izberi izvozno datoteko TRIS v obliki CSV, TXT ali XML. Pred uvozom bo prikazan predogled.</p>
+      <label class="drop-zone" id="tris-drop-zone">
+        <strong>Izberi ali povleci TRIS datoteko</strong>
+        <span>Podprto: .csv, .txt, .xml</span>
+        <input id="tris-file" type="file" accept=".csv,.txt,.xml,text/csv,text/plain,application/xml,text/xml">
+      </label>
+      <div class="import-status hidden" id="tris-status"></div>
+      <div class="import-preview hidden" id="tris-preview">
+        <div class="import-summary" id="tris-summary"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Dobavnica</th><th>Prejemnik</th><th>Datum</th><th>Naslov</th><th>Postavke</th><th>Rezultat</th></tr></thead>
+            <tbody id="tris-preview-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="button ghost" value="cancel" formnovalidate>Prekliči</button>
+        <button type="button" class="button success" id="confirm-tris-import" disabled>Uvozi dobavnice</button>
+      </div>
     </form>
   </dialog>
 
