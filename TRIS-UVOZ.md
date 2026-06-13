@@ -17,6 +17,9 @@ je preverjena z dobavnico oblike `etra.pdf`.
 PDF mora vsebovati pravo besedilo. Če je dokument samo skenirana slika, ga
 trenutna različica ne more prebrati in je treba dodati OCR.
 
+Na GitHub morata biti poleg `app.js` tudi datoteki `pdf.min.mjs` in
+`pdf.worker.min.mjs`. Brez njiju PDF uvoz ne deluje.
+
 ## Priporočeni stolpci
 
 | Podatek | Priporočeno ime stolpca |

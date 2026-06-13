@@ -234,10 +234,26 @@ function parsePdfDelivery(text) {
   }];
 }
 async function extractPdfText(file) {
-  const pdfjs = await import("./vendor/pdfjs/pdf.min.mjs");
-  pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.mjs";
+  let pdfjs;
+  let workerSrc = "./pdf.worker.min.mjs";
+  try {
+    pdfjs = await import("./pdf.min.mjs");
+  } catch (localError) {
+    try {
+      pdfjs = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@5.6.205/build/pdf.min.mjs");
+      workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.6.205/build/pdf.worker.min.mjs";
+    } catch {
+      throw new Error("PDF knjižnica ni naložena. Na GitHub naloži tudi datoteki pdf.min.mjs in pdf.worker.min.mjs.");
+    }
+  }
+  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const pdf = await pdfjs.getDocument({ data: bytes }).promise;
+  let pdf;
+  try {
+    pdf = await pdfjs.getDocument({ data: bytes }).promise;
+  } catch {
+    throw new Error("PDF datoteke ni mogoče odpreti. Preveri, da ni zaščitena z geslom.");
+  }
   const pages = [];
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
@@ -254,7 +270,11 @@ async function extractPdfText(file) {
       .filter(Boolean);
     pages.push(pageLines.join("\n"));
   }
-  return pages.join("\n");
+  const text = pages.join("\n");
+  if (text.replace(/\s/g, "").length < 30) {
+    throw new Error("PDF je verjetno sken brez besedila. Za tak dokument je potreben OCR.");
+  }
+  return text;
 }
 function openTrisImport() {
   pendingTrisDeliveries = [];
@@ -286,6 +306,11 @@ function renderTrisPreview() {
 async function readTrisFile(file) {
   if (!file) return;
   try {
+    $("#tris-status").textContent = `Berem datoteko ${file.name} ...`;
+    $("#tris-status").classList.remove("hidden");
+    $("#tris-status").classList.add("loading");
+    $("#tris-preview").classList.add("hidden");
+    $("#confirm-tris-import").disabled = true;
     const extension = file.name.split(".").pop().toLowerCase();
     if (extension === "pdf" || file.type === "application/pdf") {
       const text = await extractPdfText(file);
@@ -296,9 +321,11 @@ async function readTrisFile(file) {
       pendingTrisDeliveries = rowsToDeliveries(rows);
     }
     if (!pendingTrisDeliveries.length) throw new Error("V datoteki ni bilo mogoče najti dobavnic.");
+    $("#tris-status").classList.remove("loading");
     renderTrisPreview();
   } catch (error) {
     pendingTrisDeliveries = [];
+    $("#tris-status").classList.remove("loading");
     showTrisError(error instanceof Error ? error.message : "Uvoz datoteke ni uspel.");
   }
 }

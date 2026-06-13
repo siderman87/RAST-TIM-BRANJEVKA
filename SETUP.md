@@ -18,6 +18,8 @@ na isti začetni strani prijavi s tema podatkoma in vidi samo svoje dostave.
 
 TRIS dobavnice uvozite v `Dostave > Uvozi iz TRIS`. PDF uvoz deluje za
 dokumente z vgrajenim besedilom; skenirani dokumenti potrebujejo OCR.
+Pri nalaganju na GitHub obvezno naložite tudi `pdf.min.mjs` in
+`pdf.worker.min.mjs`.
 
 ## 2. Produkcijska različica
 
