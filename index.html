@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="sl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Upravljanje vozil, voznikov, dostav in elektronskih dobavnic.">
+  <title>DostavaPro</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#dashboard"><span>DP</span><strong>DostavaPro</strong></a>
+    <nav aria-label="Glavna navigacija">
+      <button class="nav-link active" data-view="dashboard">Pregled</button>
+      <button class="nav-link" data-view="deliveries">Dostave <span id="delivery-count-badge"></span></button>
+      <button class="nav-link" data-view="fleet">Vozni park</button>
+      <button class="nav-link" data-view="driver">Pogled voznika</button>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="connection-dot"></span>
+      <span>Lokalna različica</span>
+    </div>
+  </aside>
+
+  <main class="app">
+    <header class="topbar">
+      <button class="menu-button" id="menu-button" aria-label="Odpri meni">☰</button>
+      <div>
+        <p class="eyebrow">RAST TIM d.o.o.</p>
+        <h1 id="page-title">Pregled dostav</h1>
+      </div>
+      <div class="topbar-actions">
+        <span class="today" id="today"></span>
+        <button class="button primary" id="new-delivery-button">+ Nova dostava</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <section class="view active" id="dashboard-view">
+        <div class="metrics" id="metrics"></div>
+        <div class="dashboard-grid">
+          <section class="panel wide">
+            <div class="panel-heading">
+              <div><p class="eyebrow">OPERATIVA</p><h2>Današnje dostave</h2></div>
+              <button class="text-button" data-go="deliveries">Prikaži vse</button>
+            </div>
+            <div id="today-deliveries"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">VOZILA</p><h2>Stanje flote</h2></div></div>
+            <div id="fleet-summary"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="deliveries-view">
+        <div class="filterbar panel">
+          <input id="delivery-search" type="search" placeholder="Išči po številki, stranki ali naslovu">
+          <select id="status-filter" aria-label="Filtriraj po statusu">
+            <option value="all">Vsi statusi</option>
+            <option value="planned">Načrtovano</option>
+            <option value="loaded">Naloženo</option>
+            <option value="on-route">Na poti</option>
+            <option value="delivered">Dostavljeno</option>
+            <option value="failed">Neuspešno</option>
+          </select>
+          <button class="button secondary" id="export-data">Izvozi podatke</button>
+        </div>
+        <section class="panel table-panel">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Dobavnica</th><th>Prejemnik</th><th>Termin</th><th>Voznik / vozilo</th><th>Status</th><th></th></tr></thead>
+              <tbody id="deliveries-table"></tbody>
+            </table>
+          </div>
+          <div class="empty-state hidden" id="deliveries-empty">Ni dostav, ki ustrezajo iskanju.</div>
+        </section>
+      </section>
+
+      <section class="view" id="fleet-view">
+        <div class="section-heading">
+          <div><p class="eyebrow">VIRI</p><h2>Vozila in vozniki</h2></div>
+          <div><button class="button secondary" id="new-driver-button">+ Voznik</button> <button class="button primary" id="new-vehicle-button">+ Vozilo</button></div>
+        </div>
+        <div class="fleet-grid">
+          <section class="panel"><div class="panel-heading"><h2>Vozila</h2></div><div class="card-list" id="vehicle-list"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Vozniki</h2></div><div class="card-list" id="driver-list"></div></section>
+        </div>
+      </section>
+
+      <section class="view" id="driver-view">
+        <div class="driver-header">
+          <div><p class="eyebrow">MOBILNI POGLED</p><h2>Moja današnja pot</h2></div>
+          <select id="active-driver" aria-label="Izberi voznika"></select>
+        </div>
+        <div class="route-summary panel" id="route-summary"></div>
+        <div class="route-list" id="driver-route"></div>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="delivery-dialog">
+    <form method="dialog" id="delivery-form">
+      <div class="modal-heading"><div><p class="eyebrow">DOSTAVA</p><h2 id="delivery-dialog-title">Nova dostava</h2></div><button class="close-button" value="cancel" aria-label="Zapri">×</button></div>
+      <input type="hidden" id="delivery-id">
+      <div class="form-grid">
+        <label>Številka dobavnice<input id="delivery-number" required></label>
+        <label>Datum dostave<input id="delivery-date" type="date" required></label>
+        <label>Prejemnik<input id="customer-name" required></label>
+        <label>E-pošta<input id="customer-email" type="email"></label>
+        <label class="span-2">Naslov dostave<input id="customer-address" required></label>
+        <label>Čas od<input id="time-from" type="time"></label>
+        <label>Čas do<input id="time-to" type="time"></label>
+        <label>Voznik<select id="delivery-driver"></select></label>
+        <label>Vozilo<select id="delivery-vehicle"></select></label>
+        <label class="span-2">Opomba<textarea id="delivery-note" rows="2"></textarea></label>
+      </div>
+      <div class="items-heading"><h3>Postavke</h3><button type="button" class="button secondary small" id="add-delivery-item">+ Postavka</button></div>
+      <div class="item-editor" id="delivery-items"></div>
+      <div class="modal-actions"><button class="button ghost" value="cancel">Prekliči</button><button class="button primary" id="save-delivery" value="default">Shrani dostavo</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="resource-dialog">
+    <form method="dialog" id="resource-form">
+      <div class="modal-heading"><h2 id="resource-title"></h2><button class="close-button" value="cancel" aria-label="Zapri">×</button></div>
+      <input type="hidden" id="resource-type">
+      <div id="resource-fields"></div>
+      <div class="modal-actions"><button class="button ghost" value="cancel">Prekliči</button><button class="button primary" id="save-resource" value="default">Shrani</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="proof-dialog" class="proof-dialog">
+    <form method="dialog" id="proof-form">
+      <div class="modal-heading"><div><p class="eyebrow">ELEKTRONSKA DOBAVNICA</p><h2 id="proof-title"></h2></div><button class="close-button" value="cancel" aria-label="Zapri">×</button></div>
+      <div id="proof-content"></div>
+      <label>Ime prejemnika<input id="recipient-name" required></label>
+      <label>Podpis prejemnika</label>
+      <canvas id="signature-pad" width="700" height="180"></canvas>
+      <button type="button" class="text-button" id="clear-signature">Počisti podpis</button>
+      <div class="modal-actions">
+        <button type="button" class="button secondary" id="print-proof">Natisni / PDF</button>
+        <button type="button" class="button secondary" id="email-proof">Pripravi e-pošto</button>
+        <button class="button success" id="confirm-delivery" value="default">Potrdi dostavo</button>
+      </div>
+    </form>
+  </dialog>
+
+  <template id="delivery-item-template">
+    <div class="item-row">
+      <input class="item-name" placeholder="Naziv blaga" required>
+      <input class="item-quantity" type="number" min="0" step="0.01" placeholder="Količina" required>
+      <input class="item-unit" placeholder="Enota" value="kg">
+      <button type="button" class="remove-item" aria-label="Odstrani postavko">×</button>
+    </div>
+  </template>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
