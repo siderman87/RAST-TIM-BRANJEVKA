@@ -14,6 +14,10 @@ PDF se prebere neposredno v brskalniku in se ne pošilja na strežnik. Uvoz
 prepozna številko dobavnice, datum, prejemnika, naslov in postavke. Razpoznava
 je preverjena z dobavnico oblike `etra.pdf`.
 
+Če ima PDF več dobavnic in je vsaka na svoji strani, se strani samodejno
+razdelijo v posamezne dostave. Paketni uvoz je preverjen z datoteko `wdqd.pdf`,
+ki vsebuje 8 dobavnic.
+
 PDF mora vsebovati pravo besedilo. Če je dokument samo skenirana slika, ga
 trenutna različica ne more prebrati in je treba dodati OCR.
 

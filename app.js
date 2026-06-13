@@ -209,8 +209,9 @@ function parsePdfDelivery(text) {
   const customerLines = supplierEnd >= 0 && documentStart > supplierEnd
     ? lines.slice(supplierEnd + 1, documentStart)
     : [];
-  const customer = customerLines[0] || "Neznani prejemnik";
-  const address = customerLines.slice(1).join(", ");
+  const customerNameLines = customerLines.length >= 3 ? customerLines.slice(0, -2) : customerLines.slice(0, 1);
+  const customer = customerNameLines.join(" ") || "Neznani prejemnik";
+  const address = customerLines.slice(customerNameLines.length).join(", ");
 
   const itemPattern = /^(\d+)\s+(.+?\([^)]+\))\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)$/;
   const items = lines.map(line => line.match(itemPattern)).filter(Boolean).map(match => ({
@@ -232,6 +233,19 @@ function parsePdfDelivery(text) {
     status: "planned", note: [eventLine, cratesLine].filter(Boolean).join(" · "),
     recipient: "", signature: "", source: "TRIS PDF", items
   }];
+}
+function parsePdfDeliveries(text) {
+  const sections = text
+    .split(/\r?\n\f\r?\n/)
+    .map(section => section.trim())
+    .filter(section => /Dobavnica/i.test(section));
+  if (sections.length > 1) return sections.flatMap(parsePdfDelivery);
+
+  const starts = [...text.matchAll(/(?=RAST TIM d\.o\.o\.[\s\S]*?Dobavnica[^\n]*?\d{4}\/\d+)/gi)].map(match => match.index);
+  if (starts.length > 1) {
+    return starts.map((start, index) => text.slice(start, starts[index + 1] ?? text.length)).flatMap(parsePdfDelivery);
+  }
+  return parsePdfDelivery(text);
 }
 async function extractPdfText(file) {
   let pdfjs;
@@ -270,7 +284,7 @@ async function extractPdfText(file) {
       .filter(Boolean);
     pages.push(pageLines.join("\n"));
   }
-  const text = pages.join("\n");
+  const text = pages.join("\n\f\n");
   if (text.replace(/\s/g, "").length < 30) {
     throw new Error("PDF je verjetno sken brez besedila. Za tak dokument je potreben OCR.");
   }
@@ -314,7 +328,7 @@ async function readTrisFile(file) {
     const extension = file.name.split(".").pop().toLowerCase();
     if (extension === "pdf" || file.type === "application/pdf") {
       const text = await extractPdfText(file);
-      pendingTrisDeliveries = parsePdfDelivery(text);
+      pendingTrisDeliveries = parsePdfDeliveries(text);
     } else {
       const text = await file.text();
       const rows = extension === "xml" || text.trim().startsWith("<") ? parseXml(text) : parseCsv(text);
@@ -669,7 +683,8 @@ window.DostavaProImport = Object.freeze({
   parseCsv,
   parseXml,
   rowsToDeliveries,
-  parsePdfDelivery
+  parsePdfDelivery,
+  parsePdfDeliveries
 });
 render();
 if (currentUser()) showView(session.role === "driver" ? "driver" : "dashboard");

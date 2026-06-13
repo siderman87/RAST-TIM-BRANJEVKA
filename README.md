@@ -19,6 +19,7 @@ elektronskih dobavnic.
 - administrator lahko dodaja vozniške račune.
 - uvoz dobavnic iz TRIS v obliki CSV, TXT, XML ali tekstovni PDF;
 - predogled uvoza in samodejno preprečevanje dvojnikov.
+- samodejno razdelitev več dobavnic iz enega večstranskega PDF-ja.
 
 Navodila in vzorčna datoteka so v [TRIS-UVOZ.md](TRIS-UVOZ.md) ter
 `TRIS-VZOREC.csv`.
