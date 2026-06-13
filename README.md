@@ -14,6 +14,22 @@ elektronskih dobavnic.
 - tisk oziroma shranjevanje dobavnice v PDF;
 - pripravo e-pošte prejemniku;
 - lokalno shranjevanje in izvoz podatkov JSON.
+- ločeno prijavo za administratorja in voznike;
+- voznik vidi samo svoje dodeljene dostave;
+- administrator lahko dodaja vozniške račune.
+
+## Začetna prijava
+
+Administrator:
+
+- uporabniško ime: `admin`
+- geslo: `admin123`
+
+Testni vozniki:
+
+- `gregor` / `1111`
+- `marko` / `2222`
+- `luka` / `3333` (račun je označen kot odsoten)
 
 ## Zagon
 
@@ -32,7 +48,9 @@ Datoteke naložite v GitHub repozitorij. V `Settings > Pages` izberite
 
 ## Pomembno
 
-Ta različica podatke hrani v brskalniku in je namenjena prvemu preizkusu.
+Ta različica podatke in lokalna gesla hrani v brskalniku ter je namenjena
+prvemu preizkusu. Prijava loči prikaz, ni pa nadomestilo za varno strežniško
+avtentikacijo.
 Za skupno uporabo več dispečerjev in voznikov potrebuje:
 
 1. Supabase podatkovno bazo in prijavo;

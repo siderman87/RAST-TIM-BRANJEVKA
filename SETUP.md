@@ -12,6 +12,10 @@
 Ta način je primeren za pregled in preizkus na eni napravi. Podatki so shranjeni
 v brskalniku, zato se med različnimi telefoni še ne sinhronizirajo.
 
+Začetna administrativna prijava je `admin` / `admin123`. Po prijavi lahko v
+meniju `Vozni park` dodate voznika, njegovo uporabniško ime in PIN. Voznik se
+na isti začetni strani prijavi s tema podatkoma in vidi samo svoje dostave.
+
 ## 2. Produkcijska različica
 
 Za istočasno delo dispečerja in več voznikov bomo dodali:
