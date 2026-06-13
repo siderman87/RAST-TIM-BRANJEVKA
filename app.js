@@ -30,6 +30,8 @@ let session = loadSession();
 let activeProofId = null;
 let signatureDirty = false;
 let pendingTrisDeliveries = [];
+const selectedDeliveryIds = new Set();
+let pendingConfirmation = null;
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -447,14 +449,20 @@ function renderDeliveries() {
     .filter(item => [item.number, item.customer, item.address].join(" ").toLowerCase().includes(search))
     .sort((a, b) => `${b.date}${b.from}`.localeCompare(`${a.date}${a.from}`));
   $("#deliveries-table").innerHTML = list.map(item => `<tr>
+    <td class="select-column"><input class="delivery-select" type="checkbox" data-id="${item.id}" aria-label="Izberi dobavnico ${escapeHtml(item.number)}" ${selectedDeliveryIds.has(item.id) ? "checked" : ""}></td>
     <td><strong>${escapeHtml(item.number)}</strong><br><small>${formatDate(item.date)}</small></td>
     <td><strong>${escapeHtml(item.customer)}</strong><br><small>${escapeHtml(item.address)}</small></td>
     <td>${escapeHtml(item.from || "-")}–${escapeHtml(item.to || "-")}</td>
     <td>${escapeHtml(driver(item.driverId)?.name || "Ni dodeljen")}<br><small>${escapeHtml(vehicle(item.vehicleId)?.plate || "")}</small></td>
     <td>${statusTag(item.status)}</td>
-    <td><div class="row-actions"><button class="icon-action edit-delivery" data-id="${item.id}">Uredi</button><button class="icon-action open-proof" data-id="${item.id}">Dobavnica</button></div></td>
+    <td><div class="row-actions"><button class="icon-action edit-delivery" data-id="${item.id}">Uredi</button><button class="icon-action open-proof" data-id="${item.id}">Dobavnica</button><button class="icon-action delete-delivery" data-id="${item.id}">Izbriši</button></div></td>
   </tr>`).join("");
   $("#deliveries-empty").classList.toggle("hidden", list.length > 0);
+  const visibleIds = list.map(item => item.id);
+  const selectedVisible = visibleIds.filter(itemId => selectedDeliveryIds.has(itemId)).length;
+  $("#select-all-deliveries").checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
+  $("#select-all-deliveries").indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
+  updateBulkActions();
 }
 
 function renderFleet() {
@@ -468,8 +476,53 @@ function populateSelects() {
   const currentDriver = $("#active-driver").value;
   $("#delivery-driver").innerHTML = driverOptions;
   $("#delivery-vehicle").innerHTML = vehicleOptions;
+  $("#quick-driver").innerHTML = driverOptions;
+  $("#quick-vehicle").innerHTML = vehicleOptions;
   $("#active-driver").innerHTML = state.drivers.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
   $("#active-driver").value = state.drivers.some(item => item.id === currentDriver) ? currentDriver : state.drivers[0]?.id || "";
+}
+function updateBulkActions() {
+  const count = selectedDeliveryIds.size;
+  $("#selected-delivery-count").textContent = `${count} ${count === 1 ? "izbrana" : "izbranih"}`;
+  $("#quick-assign").disabled = count === 0;
+  $("#delete-selected").disabled = count === 0;
+}
+function clearDeliverySelection() {
+  selectedDeliveryIds.clear();
+  renderDeliveries();
+}
+function quickAssignSelected() {
+  if (!selectedDeliveryIds.size) return;
+  const driverId = $("#quick-driver").value;
+  const vehicleId = $("#quick-vehicle").value;
+  if (!driverId && !vehicleId) {
+    toast("Izberi voznika ali vozilo.");
+    return;
+  }
+  let changed = 0;
+  state.deliveries.forEach(item => {
+    if (!selectedDeliveryIds.has(item.id)) return;
+    if (driverId) item.driverId = driverId;
+    if (vehicleId) item.vehicleId = vehicleId;
+    changed += 1;
+  });
+  clearDeliverySelection();
+  render();
+  toast(`Dodeljenih dostav: ${changed}.`);
+}
+function openConfirmation(title, message, action) {
+  $("#confirm-title").textContent = title;
+  $("#confirm-message").textContent = message;
+  pendingConfirmation = action;
+  $("#confirm-dialog").showModal();
+}
+function deleteDeliveries(ids) {
+  const idSet = new Set(ids);
+  const removed = state.deliveries.filter(item => idSet.has(item.id)).length;
+  state.deliveries = state.deliveries.filter(item => !idSet.has(item.id));
+  ids.forEach(itemId => selectedDeliveryIds.delete(itemId));
+  render();
+  toast(`Izbrisanih dostav: ${removed}.`);
 }
 
 function renderDriverView() {
@@ -626,6 +679,15 @@ document.addEventListener("click", event => {
   if (edit) openDelivery(edit.dataset.id);
   const proof = event.target.closest(".open-proof");
   if (proof) openProof(proof.dataset.id);
+  const removeDelivery = event.target.closest(".delete-delivery");
+  if (removeDelivery) {
+    const item = state.deliveries.find(delivery => delivery.id === removeDelivery.dataset.id);
+    if (item) openConfirmation(
+      "Izbriši dostavo?",
+      `Dobavnica ${item.number} za ${item.customer} bo trajno odstranjena iz te naprave.`,
+      () => deleteDeliveries([item.id])
+    );
+  }
   const route = event.target.closest(".set-route");
   if (route) { const item = state.deliveries.find(delivery => delivery.id === route.dataset.id); if (item) item.status = "on-route"; render(); toast("Status je spremenjen v Na poti."); }
 });
@@ -658,6 +720,40 @@ $("#save-delivery").addEventListener("click", event => { event.preventDefault();
 $("#save-resource").addEventListener("click", event => { event.preventDefault(); if (saveResource()) $("#resource-dialog").close(); });
 $("#delivery-search").addEventListener("input", renderDeliveries);
 $("#status-filter").addEventListener("change", renderDeliveries);
+$("#deliveries-table").addEventListener("change", event => {
+  const checkbox = event.target.closest(".delivery-select");
+  if (!checkbox) return;
+  if (checkbox.checked) selectedDeliveryIds.add(checkbox.dataset.id);
+  else selectedDeliveryIds.delete(checkbox.dataset.id);
+  renderDeliveries();
+});
+$("#select-all-deliveries").addEventListener("change", event => {
+  $$(".delivery-select", $("#deliveries-table")).forEach(checkbox => {
+    if (event.target.checked) selectedDeliveryIds.add(checkbox.dataset.id);
+    else selectedDeliveryIds.delete(checkbox.dataset.id);
+  });
+  renderDeliveries();
+});
+$("#clear-delivery-selection").addEventListener("click", clearDeliverySelection);
+$("#quick-assign").addEventListener("click", quickAssignSelected);
+$("#delete-selected").addEventListener("click", () => {
+  const ids = [...selectedDeliveryIds];
+  if (!ids.length) return;
+  openConfirmation(
+    "Izbriši izbrane dostave?",
+    `Trajno bo izbrisanih ${ids.length} dostav. Tega dejanja ni mogoče razveljaviti.`,
+    () => deleteDeliveries(ids)
+  );
+});
+$("#confirm-action").addEventListener("click", () => {
+  const action = pendingConfirmation;
+  pendingConfirmation = null;
+  $("#confirm-dialog").close();
+  action?.();
+});
+$("#confirm-dialog").addEventListener("close", () => {
+  if ($("#confirm-dialog").returnValue === "cancel") pendingConfirmation = null;
+});
 $("#active-driver").addEventListener("change", renderDriverView);
 $("#clear-signature").addEventListener("click", clearCanvas);
 $("#confirm-delivery").addEventListener("click", event => { event.preventDefault(); if (confirmProof()) $("#proof-dialog").close(); });

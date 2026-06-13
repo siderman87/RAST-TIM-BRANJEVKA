@@ -21,6 +21,12 @@ dokumente z vgrajenim besedilom; skenirani dokumenti potrebujejo OCR.
 Pri nalaganju na GitHub obvezno naložite tudi `pdf.min.mjs` in
 `pdf.worker.min.mjs`.
 
+## Hitro razporejanje
+
+V seznamu `Dostave` označite eno ali več dobavnic, izberite voznika in vozilo
+ter kliknite `Hitro dodeli`. Dobavnice lahko izbrišete posamezno v vrstici ali
+skupinsko z gumbom `Izbriši izbrane`; pred brisanjem se vedno pokaže potrditev.
+
 ## 2. Produkcijska različica
 
 Za istočasno delo dispečerja in več voznikov bomo dodali:

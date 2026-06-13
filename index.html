@@ -6,7 +6,7 @@
   <meta name="description" content="Upravljanje vozil, voznikov, dostav in elektronskih dobavnic.">
   <title>DostavaPro</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="app.js?v=20260613-multipdf" defer></script>
+  <script src="app.js?v=20260613-bulk-assign" defer></script>
 </head>
 <body>
   <section class="login-screen" id="login-screen">
@@ -88,10 +88,17 @@
           <button class="button primary" id="import-tris-button">Uvozi iz TRIS</button>
           <button class="button secondary" id="export-data">Izvozi podatke</button>
         </div>
+        <div class="bulkbar panel">
+          <div class="bulk-selection"><strong id="selected-delivery-count">0 izbranih</strong><button class="text-button" id="clear-delivery-selection">Počisti izbor</button></div>
+          <label>Voznik<select id="quick-driver"></select></label>
+          <label>Vozilo<select id="quick-vehicle"></select></label>
+          <button class="button primary" id="quick-assign" disabled>Hitro dodeli</button>
+          <button class="button danger" id="delete-selected" disabled>Izbriši izbrane</button>
+        </div>
         <section class="panel table-panel">
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Dobavnica</th><th>Prejemnik</th><th>Termin</th><th>Voznik / vozilo</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th class="select-column"><input id="select-all-deliveries" type="checkbox" aria-label="Izberi vse prikazane dostave"></th><th>Dobavnica</th><th>Prejemnik</th><th>Termin</th><th>Voznik / vozilo</th><th>Status</th><th></th></tr></thead>
               <tbody id="deliveries-table"></tbody>
             </table>
           </div>
@@ -179,6 +186,14 @@
         <button class="button ghost" value="cancel" formnovalidate>Prekliči</button>
         <button type="button" class="button success" id="confirm-tris-import" disabled>Uvozi dobavnice</button>
       </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirm-dialog" class="confirm-dialog">
+    <form method="dialog">
+      <div class="modal-heading"><div><p class="eyebrow">POTRDITEV</p><h2 id="confirm-title">Izbriši dostavo?</h2></div><button class="close-button" value="cancel" formnovalidate aria-label="Zapri">×</button></div>
+      <p id="confirm-message"></p>
+      <div class="modal-actions"><button class="button ghost" value="cancel">Prekliči</button><button type="button" class="button danger" id="confirm-action">Izbriši</button></div>
     </form>
   </dialog>
 

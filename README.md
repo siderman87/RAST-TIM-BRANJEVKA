@@ -20,6 +20,8 @@ elektronskih dobavnic.
 - uvoz dobavnic iz TRIS v obliki CSV, TXT, XML ali tekstovni PDF;
 - predogled uvoza in samodejno preprečevanje dvojnikov.
 - samodejno razdelitev več dobavnic iz enega večstranskega PDF-ja.
+- hitro skupinsko dodeljevanje dobavnic vozniku in vozilu;
+- posamezno ali skupinsko brisanje dostav s potrditvijo.
 
 Navodila in vzorčna datoteka so v [TRIS-UVOZ.md](TRIS-UVOZ.md) ter
 `TRIS-VZOREC.csv`.
